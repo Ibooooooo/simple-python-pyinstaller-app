@@ -21,7 +21,8 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # Actualiza pip e instala pytest con más logs
 RUN python3 -m pip install --upgrade pip --break-system-packages && \
-    pip3 install --no-cache-dir pytest --break-system-packages
+    pip3 install --no-cache-dir pytest pyinstaller --break-system-packages
+
 
 # Instalación Docker CLI
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | \
