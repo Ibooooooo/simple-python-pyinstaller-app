@@ -2,6 +2,7 @@ FROM jenkins/jenkins:lts
 
 USER root
 
+# Instalación de herramientas base y Python3
 RUN apt-get update && apt-get install -y \
     lsb-release \
     ca-certificates \
@@ -11,13 +12,18 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Asegura que "python" apunte a python3
+# Verifica que python3 y pip3 existen y funcionan
+RUN which python3 && python3 --version && \
+    which pip3 && pip3 --version
+
+# Enlace simbólico para usar 'python'
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
-# Instalamos pytest
+# Actualiza pip e instala pytest con más logs
 RUN python3 -m pip install --upgrade pip && \
     pip3 install --no-cache-dir pytest
 
+# Instalación Docker CLI
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | \
     gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
 
@@ -29,5 +35,6 @@ RUN apt-get update && apt-get install -y docker-ce-cli
 
 USER jenkins
 
+# Plugins de Jenkins
 RUN jenkins-plugin-cli --plugins \
     "blueocean docker-workflow git workflow-aggregator"
