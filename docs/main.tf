@@ -23,7 +23,7 @@ resource "docker_volume" "docker_certs" {
   name = "docker_certs"
 }
 
-# Imagen personalizada de Jenkins (Dockerfile debe estar en el mismo dir)
+# Imagen personalizada de Jenkins 
 resource "docker_image" "jenkins_custom" {
   name         = "jenkins-custom:latest"
   build {
