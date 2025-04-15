@@ -24,6 +24,9 @@ RUN apt-get update && apt-get install -y \
     && ln -s /usr/bin/python3 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
+# Instalamos pytest
+RUN pip3 install pytest
+
 USER jenkins
 
 RUN jenkins-plugin-cli --plugins \
