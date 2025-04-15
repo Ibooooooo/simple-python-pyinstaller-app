@@ -2,11 +2,23 @@ FROM jenkins/jenkins:lts
 
 USER root
 
-RUN apt-get update && \
-    apt-get install -y python3 python3-pip && \
-    ln -sf /usr/bin/python3 /usr/bin/python && \
-    python3 -m pip install --upgrade pip && \
-    pip3 install --no-cache-dir pytest
+# Modo depuración
+SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
+
+RUN apt-get update && apt-get install -y \
+    lsb-release \
+    ca-certificates \
+    curl \
+    gnupg \
+    python3 \
+    python3-pip
+
+# Crear alias para 'python'
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# Actualizar pip y luego instalar pytest
+RUN python3 -m pip install --upgrade pip
+RUN pip3 install --no-cache-dir pytest
 
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | \
     gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
