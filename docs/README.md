@@ -191,3 +191,43 @@ terraform init
 terraform apply
 http://localhost:8080
 ```
+## Configuración de Jenkins
+
+Una vez accedamos al localhot:8080, nos encotraremos en una página donde nos preguntará si queremos instalarnos los pluggins recomendados o los que nosotros queramos, seleccionamos la opción de plugins recomendados (Deberían inslarse correctamente todos pluggins, sobre todo las de pipeline, Git y Ocean).
+Ahora las página nos llevarar al login en la cual tendremos que meter la contraseña que está ubicada en **/var/jenkins_home/secrets/initialAdminPassword**
+Para ello solo tenemos que poner en la terminal:
+```bash
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+```
+Una vez instroducida la contraseña, le indicamos que vamos a continuar como admin.
+Una vez ya estamos en el menú principal de Jenkins
+
+Create your Pipeline project in Jenkins
+In Jenkins, select New Item under Dashboard > at the top left.
+
+Enter your new Pipeline project name in Enter an item name (e.g. simple-python-pyinstaller-app).
+
+Scroll down if necessary and select Pipeline, then click OK at the end of the page.
+
+(Optional) Enter a Pipeline Description.
+
+Select Pipeline on the left pane.
+
+Select Definition, and then choose the Pipeline script from SCM option. This option instructs Jenkins to obtain your Pipeline from the source control management (SCM), which is your forked Git repository.
+
+Choose Git from the options in SCM.
+
+Enter the URL of your repository in Repositories/Repository URL. This URL can be found when clicking on the green button Code in the main page of your GitHub repo.
+
+Hit the Save button at the end of the page. You’re now ready to create a Jenkinsfile to check into your locally cloned Git repository.
+
+Create your initial Pipeline as a Jenkinsfile
+You’re now ready to create your Pipeline that will automate building your Python application with PyInstaller in Jenkins. Your Pipeline will be created as a Jenkinsfile, which will be committed to your locally cloned Git repository (simple-python-pyinstaller-app), and then pushed to GitHub, where Jenkins will be able to find it.
+
+This is the foundation of "Pipeline-as-Code", which treats the continuous delivery pipeline as part of the application to be versioned and reviewed like any other code. Read more about Pipeline and what a Jenkinsfile is in the Pipeline and Using a Jenkinsfile sections of the User Handbook.
+
+First, create an initial Pipeline with a "Build" stage that executes the first part of the entire production process for your application. This "Build" stage compiles your simple Python application into byte code.
+
+Using your favorite text editor or IDE, create and save a new text file with the name Jenkinsfile at the root of your local simple-python-pyinstaller-app Git repository.
+
+Copy the following Declarative Pipeline code and paste it into your empty Jenkinsfile:
