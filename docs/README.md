@@ -20,7 +20,6 @@ Este repositorio contiene un `Dockerfile` para construir una imagen personalizad
 - PyInstaller
 
 Que son las cosas que necesitaremos para realizar la práctica.
----
 
 ### Construcción de la imagen
 
@@ -60,4 +59,135 @@ RUN apt-get update && apt-get install -y docker-ce-cli
 ```dockerfile
 RUN jenkins-plugin-cli --plugins \
     "blueocean docker-workflow git workflow-aggregator"
+```
+
+## Despliegue con Terraform
+
+Una vez construida la imagen personalizada de Jenkins, procedemos al despliegue de dos contenedores:
+
+- **Jenkins**, usando nuestra imagen personalizada.
+- **Docker-in-Docker (DinD)**, que permite a Jenkins ejecutar contenedores Docker desde dentro del propio contenedor.
+
+Este despliegue se realiza con **Terraform**, utilizando el proveedor de Docker.
+
+### Estructura de Terraform
+
+```hcl
+terraform {
+  required_providers {
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0.2"
+    }
+  }
+}
+
+provider "docker" {}
+```
+### 1. Creamos una red personalizada para que Jenkins y Docker-in-Docker se comuniquen entre sí
+```hcl
+resource "docker_network" "jenkins_net" {
+  name = "jenkins_net"
+}
+```
+### 2. Se definen dos volúmenes
+jenkins_home: persistencia de datos de Jenkins.
+docker_certs: certificados TLS compartidos con Docker-in-Docker.
+```hcl
+resource "docker_volume" "jenkins_home" {
+  name = "jenkins_home"
+}
+resource "docker_volume" "docker_certs" {
+  name = "docker_certs"
+}
+```
+### 3. Imagen personalizada de Jenkins
+Terraform construye la imagen usando el Dockerfile:
+```hcl
+resource "docker_image" "jenkins_custom" {
+  name = "jenkins-custom:latest"
+  build {
+    context    = "${path.module}/."
+    dockerfile = "Dockerfile"
+  }
+}
+```
+### 4. Contenedor de Jenkins
+Este contenedor utiliza la imagen personalizada y monta los volúmenes y red definidos:
+```hcl
+resource "docker_container" "jenkins" {
+  name  = "jenkins"
+  image = docker_image.jenkins_custom.name
+  restart = "unless-stopped"
+
+  ports {
+    internal = 8080
+    external = 8080
+  }
+
+  ports {
+    internal = 50000
+    external = 50000
+  }
+
+  env = [
+    "DOCKER_HOST=tcp://docker:2376",
+    "DOCKER_CERT_PATH=/certs/client",
+    "DOCKER_TLS_VERIFY=1"
+  ]
+
+  volumes {
+    volume_name    = docker_volume.jenkins_home.name
+    container_path = "/var/jenkins_home"
+  }
+
+  volumes {
+    volume_name    = docker_volume.docker_certs.name
+    container_path = "/certs/client"
+    read_only      = true
+  }
+
+  networks_advanced {
+    name = docker_network.jenkins_net.name
+  }
+}
+```
+### 5. Contenedor Docker-in-Docker (DinD)
+Este contenedor permite que Jenkins ejecute comandos Docker:
+```hcl
+resource "docker_container" "docker" {
+  name  = "docker"
+  image = "docker:dind"
+  restart = "unless-stopped"
+  privileged = true
+
+  env = [
+    "DOCKER_TLS_CERTDIR=/certs"
+  ]
+
+  ports {
+    internal = 3000
+    external = 3000
+  }
+
+  ports {
+    internal = 5000
+    external = 5000
+  }
+
+  volumes {
+    volume_name    = docker_volume.docker_certs.name
+    container_path = "/certs/client"
+  }
+
+  networks_advanced {
+    name = docker_network.jenkins_net.name
+  }
+}
+```
+Ejecución del despliegue
+```hcl
+terraform init
+terraform apply
+http://localhost:8080
 ```
