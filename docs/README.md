@@ -1,29 +1,28 @@
 # Práctica de Jenkins
 
 ## Introducción
-En esta práctica vamos realizar un despliegue de una aplicación Python mediante un pipeline de Jenkins
-tal como se indica en el siguiente tutorial:
+En esta práctica realizaremos el despliegue de una aplicación Python mediante un pipeline de Jenkins, siguiendo el tutorial oficial:
 
-https://www.jenkins.io/doc/tutorials/build-a-python-app-with-pyinstaller/
+[Build a Python app with PyInstaller](https://www.jenkins.io/doc/tutorials/build-a-python-app-with-pyinstaller/)
 
-Para ello vamos a necesitar construir una imagen personalizada de **Jenkins** basada en `jenkins/jenkins:lts` y también construiremos un **Docker in Docker**.
-El despliegue de ambos contenedores de realizarán mediante **Terraform**.
-Para crear la imagen personalizada de Jenkins usaremos un Dockerfile, esto no debe realizarse mediante Terraform.
+Para ello, construiremos una imagen personalizada de Jenkins basada en `jenkins/jenkins:lts` con las herramientas necesarias, así como un contenedor Docker-in-Docker (DinD). Ambos contenedores se desplegarán usando Terraform, aunque la construcción de la imagen personalizada se realizará mediante un `Dockerfile` de forma independiente.
+
+---
 
 ## Dockerfile
-Este repositorio contiene un `Dockerfile` para construir una imagen personalizada de **Jenkins** basada en `jenkins/jenkins:lts`, extendida con soporte para:
+
+Este repositorio incluye un `Dockerfile` que extiende la imagen oficial `jenkins/jenkins:lts` para incluir:
 
 - Docker CLI
-- Plugins de Jenkins como Blue Ocean, Docker Workflow y Git
+- Plugins de Jenkins: Blue Ocean, Docker Workflow y Git
 - Python 3
 - Pytest
 - PyInstaller
 
-Que son las cosas que necesitaremos para realizar la práctica.
-
-### Construcción de la imagen
+Estas herramientas son necesarias para ejecutar el pipeline de la práctica.
 
 ### 1. Instalación de herramientas base y Python
+
 ```dockerfile
 RUN apt-get update && apt-get install -y \
     lsb-release \
@@ -36,14 +35,18 @@ RUN apt-get update && apt-get install -y \
 
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 ```
-### 2. Instalación de paquetes Python (pytest y pyinstaller)
+
+### 2. Instalación de paquetes Python
+
 ```dockerfile
 RUN python3 -m pip install --upgrade pip --break-system-packages && \
     pip3 install --no-cache-dir pytest pyinstaller --break-system-packages
 ```
-*--break-system-packages* se usa porque Debian ahora protege los paquetes del sistema. Esta opción nos permite instalar desde pip sin errores.
 
-### 3. Configuración del repositorio oficial de Docker e instalación de docker-ce-cli
+* Se usa `--break-system-packages` para evitar restricciones impuestas por Debian al instalar paquetes del sistema.
+
+### 3. Instalación de Docker CLI
+
 ```dockerfile
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | \
     gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
@@ -56,21 +59,22 @@ RUN apt-get update && apt-get install -y docker-ce-cli
 ```
 
 ### 4. Instalación de plugins de Jenkins
+
 ```dockerfile
 RUN jenkins-plugin-cli --plugins \
     "blueocean docker-workflow git workflow-aggregator"
 ```
 
+---
+
 ## Despliegue con Terraform
 
-Una vez construida la imagen personalizada de Jenkins, procedemos al despliegue de dos contenedores:
+Terraform se usa para desplegar dos contenedores conectados en red:
 
-- **Jenkins**, usando nuestra imagen personalizada.
-- **Docker-in-Docker (DinD)**, que permite a Jenkins ejecutar contenedores Docker desde dentro del propio contenedor.
+- Jenkins, usando la imagen personalizada.
+- Docker-in-Docker (DinD), para permitir a Jenkins ejecutar contenedores Docker.
 
-Este despliegue se realiza con **Terraform**, utilizando el proveedor de Docker.
-
-### Estructura de Terraform
+### Estructura básica de Terraform
 
 ```hcl
 terraform {
@@ -84,25 +88,29 @@ terraform {
 
 provider "docker" {}
 ```
-### 1. Creamos una red personalizada para que Jenkins y Docker-in-Docker se comuniquen entre sí
+
+### 1. Red personalizada
+
 ```hcl
 resource "docker_network" "jenkins_net" {
   name = "jenkins_net"
 }
 ```
-### 2. Se definen dos volúmenes
-jenkins_home: persistencia de datos de Jenkins.
-docker_certs: certificados TLS compartidos con Docker-in-Docker.
+
+### 2. Volúmenes para persistencia y certificados
+
 ```hcl
 resource "docker_volume" "jenkins_home" {
   name = "jenkins_home"
 }
+
 resource "docker_volume" "docker_certs" {
   name = "docker_certs"
 }
 ```
+
 ### 3. Imagen personalizada de Jenkins
-Terraform construye la imagen usando el Dockerfile:
+
 ```hcl
 resource "docker_image" "jenkins_custom" {
   name = "jenkins-custom:latest"
@@ -112,8 +120,9 @@ resource "docker_image" "jenkins_custom" {
   }
 }
 ```
-### 4. Contenedor de Jenkins
-Este contenedor utiliza la imagen personalizada y monta los volúmenes y red definidos:
+
+### 4. Contenedor Jenkins
+
 ```hcl
 resource "docker_container" "jenkins" {
   name  = "jenkins"
@@ -152,8 +161,9 @@ resource "docker_container" "jenkins" {
   }
 }
 ```
+
 ### 5. Contenedor Docker-in-Docker (DinD)
-Este contenedor permite que Jenkins ejecute comandos Docker:
+
 ```hcl
 resource "docker_container" "docker" {
   name  = "docker"
@@ -185,49 +195,101 @@ resource "docker_container" "docker" {
   }
 }
 ```
-Ejecución del despliegue
-```hcl
+
+---
+
+## Despliegue
+
+Ejecuta los siguientes comandos para desplegar todo:
+
+```bash
 terraform init
 terraform apply
-http://localhost:8080
 ```
-## Configuración de Jenkins
 
-Una vez accedamos al localhot:8080, nos encotraremos en una página donde nos preguntará si queremos instalarnos los pluggins recomendados o los que nosotros queramos, seleccionamos la opción de plugins recomendados (Deberían inslarse correctamente todos pluggins, sobre todo las de pipeline, Git y Ocean).
-Ahora las página nos llevarar al login en la cual tendremos que meter la contraseña que está ubicada en **/var/jenkins_home/secrets/initialAdminPassword**
-Para ello solo tenemos que poner en la terminal:
+Luego accede a Jenkins desde [http://localhost:8080](http://localhost:8080)
+
+---
+
+## Configuración inicial de Jenkins
+
+### 1. Accede a Jenkins
+Abre [http://localhost:8080](http://localhost:8080) en tu navegador.
+
+### 2. Desbloquea Jenkins
+Ejecuta el siguiente comando para obtener la contraseña inicial:
+
 ```bash
 docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 ```
-Una vez instroducida la contraseña, le indicamos que vamos a continuar como admin.
-Una vez ya estamos en el menú principal de Jenkins
 
-Create your Pipeline project in Jenkins
-In Jenkins, select New Item under Dashboard > at the top left.
+### 3. Instala plugins recomendados
+Selecciona “Instalar plugins recomendados” cuando Jenkins lo solicite.
 
-Enter your new Pipeline project name in Enter an item name (e.g. simple-python-pyinstaller-app).
+### 4. Finaliza la configuración
+Continúa como administrador cuando se solicite.
 
-Scroll down if necessary and select Pipeline, then click OK at the end of the page.
+---
 
-(Optional) Enter a Pipeline Description.
+## Creación del Pipeline
 
-Select Pipeline on the left pane.
+1. En el panel de Jenkins, haz clic en “New Item”.
+2. Introduce un nombre para el proyecto (por ejemplo, `simple-python-pyinstaller-app`).
+3. Selecciona “Pipeline” como tipo de proyecto y haz clic en OK.
+4. En el menú lateral, selecciona **Pipeline** y luego:
 
-Select Definition, and then choose the Pipeline script from SCM option. This option instructs Jenkins to obtain your Pipeline from the source control management (SCM), which is your forked Git repository.
+    - En “Definition” selecciona **Pipeline script from SCM**
+    - En “SCM” elige **Git**
+    - En “Repository URL” introduce la URL de tu repositorio
+    - Haz clic en **Save**.
 
-Choose Git from the options in SCM.
+---
 
-Enter the URL of your repository in Repositories/Repository URL. This URL can be found when clicking on the green button Code in the main page of your GitHub repo.
+## Jenkinsfile: Pipeline Declarativo
 
-Hit the Save button at the end of the page. You’re now ready to create a Jenkinsfile to check into your locally cloned Git repository.
+Crea un archivo llamado `Jenkinsfile` en el directorio raíz del proyecto, con el siguiente contenido:
 
-Create your initial Pipeline as a Jenkinsfile
-You’re now ready to create your Pipeline that will automate building your Python application with PyInstaller in Jenkins. Your Pipeline will be created as a Jenkinsfile, which will be committed to your locally cloned Git repository (simple-python-pyinstaller-app), and then pushed to GitHub, where Jenkins will be able to find it.
+```groovy
+pipeline {
+    agent any
+    options {
+        skipStagesAfterUnstable()
+    }
+    stages {
+        stage('Build') {
+            steps {
+                sh 'python3 -m py_compile sources/add2vals.py sources/calc.py'
+                stash(name: 'compiled-results', includes: 'sources/*.py*')
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'pytest --junit-xml test-reports/results.xml sources/test_calc.py'
+            }
+            post {
+                always {
+                    junit 'test-reports/results.xml'
+                }
+            }
+        }
+        stage('Deliver') {
+            steps {
+                sh 'pyinstaller --onefile sources/add2vals.py'
+            }
+            post {
+                success {
+                    archiveArtifacts 'dist/add2vals'
+                }
+            }
+        }
+    }
+}
+```
 
-This is the foundation of "Pipeline-as-Code", which treats the continuous delivery pipeline as part of the application to be versioned and reviewed like any other code. Read more about Pipeline and what a Jenkinsfile is in the Pipeline and Using a Jenkinsfile sections of the User Handbook.
+Este pipeline realiza tres etapas:
 
-First, create an initial Pipeline with a "Build" stage that executes the first part of the entire production process for your application. This "Build" stage compiles your simple Python application into byte code.
+- **Build**: compila los archivos `.py` a bytecode.
+- **Test**: ejecuta pruebas unitarias con `pytest`.
+- **Deliver**: empaqueta la aplicación con `PyInstaller` y archiva el binario generado.
 
-Using your favorite text editor or IDE, create and save a new text file with the name Jenkinsfile at the root of your local simple-python-pyinstaller-app Git repository.
-
-Copy the following Declarative Pipeline code and paste it into your empty Jenkinsfile:
+Al momento de construir el pipeline debrías de ver que todas las fases se realizan correctamente.
